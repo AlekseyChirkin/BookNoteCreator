@@ -26,6 +26,8 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Install Playwright Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}\playwright-browsers
         run: python -m playwright install chromium
 
       - name: Build portable app with PyInstaller
