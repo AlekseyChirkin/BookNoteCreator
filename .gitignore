@@ -30,4 +30,4 @@ Thumbs.db
 
 # Environment/config with secrets
 .env
-.env.local
+.env.localbnc_preview_screenshot.png

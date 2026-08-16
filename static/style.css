@@ -1,11 +1,13 @@
 /* ============================================================
-   BookNoteCreator — CRT TERMINAL (retro pixel / phosphor)
-   Классический зелёно-фосфорный терминал: сканлайны,
-   виньетка, мерцание ЭЛТ, жёсткие пиксельные тени.
-   Шрифты вшиты локально (static/fonts) — работают офлайн.
-   Press Start 2P — кириллица ✓ (заголовки, кнопки, поля)
-   VT323 + Courier New fallback — длинные тексты (кириллица ✓)
-   Классы и ID НЕ менялись — функционал (JS) не затронут.
+   BookNoteCreator — CRT TERMINAL v2
+   Полный редизайн: окно терминала, зоны-команды, состояния.
+   Классы и ID, которые использует JS, СОХРАНЕНЫ:
+   (#url #date #rating #ratingGroup #bookForm #saveBtn #previewBlock
+    #coverImage #coverPlaceholder #toast #resultPanel #resultBadge
+    #resultSubtitle #resultWarnings #statusDot #networkStatus
+    #statusMessage #previewTitle/Authors/Series/Type/Reader/Genres/
+    Annotation/Source, .star .is-hidden .is-visible .active)
+   Шрифты локальны (static/fonts), flatpickr локально (static/vendor).
    ============================================================ */
 
 /* ===== Шрифты (локальные, OFL) ===== */
@@ -24,20 +26,22 @@
 
 /* ===== Переменные: палитра фосфорного терминала ===== */
 :root {
-  --bg0: #04070a;          /* почти чёрный, холодный */
-  --bg1: #0a1114;          /* панели */
-  --bg2: #0e171b;          /* карточки/инпуты */
-  --bg3: #142127;          /* hover */
-  --phosphor: #b6f07c;     /* основной фосфорно-зелёный текст */
-  --phosphor-dim: #6fa65a; /* приглушённый */
-  --phosphor-faint: #3f5e3a; /* совсем тусклый */
-  --amber: #ffc857;        /* янтарь — вторичный акцент */
-  --red: #ff5e5e;          /* ошибки */
-  --cyan-dim: #58c8a0;     /* холодный зелёный для ссылок */
-  --frame: #1c2b26;        /* рамки */
-  --frame-strong: #2e4438; /* рамка фокуса/hover */
-  --shadow: #000;          /* жёсткая тень */
-  --radius: 4px;           /* почти без скруглений, терминал */
+  --bg0: #04070a;
+  --bg1: #0a1114;
+  --bg2: #0e171b;
+  --bg3: #142127;
+  --phosphor: #b6f07c;
+  --phosphor-dim: #6fa65a;
+  --phosphor-faint: #3f5e3a;
+  --amber: #ffc857;
+  --red: #ff5e5e;
+  --acid: #b6f07c;   /* JS ставит statusDot.style.background = var(--acid) */
+  --pink: #ff5e5e;   /* JS ставит var(--pink) при офлайне */
+  --cyan-dim: #58c8a0;
+  --frame: #1c2b26;
+  --frame-strong: #2e4438;
+  --shadow: #000;
+  --radius: 4px;
   --font-pixel: "Pixel", "Courier New", monospace;
   --font-term: "Term", "Courier New", monospace;
 }
@@ -50,17 +54,15 @@ body {
   min-height: 100vh;
   color: var(--phosphor);
   font-family: var(--font-term);
-  font-size: 17px; /* VT323 мелкий, компенсируем */
+  font-size: 17px;
   line-height: 1.5;
   background:
-    /* виньетка ЭЛТ — темнее по краям */
     radial-gradient(ellipse 120% 100% at 50% 50%,
       transparent 55%, rgba(0, 0, 0, .38) 82%, rgba(0, 0, 0, .62) 100%),
-    /* лёгкое зелёное свечение по центру */
     radial-gradient(900px 500px at 50% -10%, rgba(120, 255, 120, .05), transparent 60%),
     var(--bg0);
 }
-/* сканлайны — горизонтальные тёмные линии каждые 3px */
+/* сканлайны */
 body::after {
   content: "";
   position: fixed; inset: 0; z-index: 9998;
@@ -85,7 +87,7 @@ html::before {
   50%  { opacity: .95; }
   100% { opacity: .8; }
 }
-/* пиксельная сетка, тающая вниз */
+/* пиксельная сетка */
 body::before {
   content: "";
   position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .35;
@@ -101,34 +103,61 @@ body::before {
 ::-webkit-scrollbar-track { background: var(--bg1); }
 ::-webkit-scrollbar-thumb { background: var(--frame-strong); border: 2px solid var(--bg1); }
 
-/* ===== Обёртка ===== */
+/* ===== Окно терминала ===== */
+.crt-shell {
+  max-width: 1460px;
+  margin: 26px auto;
+  border: 1px solid var(--frame-strong);
+  background: var(--bg1);
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, .6), inset 0 0 80px rgba(0, 0, 0, .4);
+}
+
+/* Титульная строка окна */
+.win-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--frame);
+  background: linear-gradient(180deg, #0d1519, #080d10);
+}
+.win-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.win-dot { width: 11px; height: 11px; display: inline-block; flex-shrink: 0; }
+.dot-red   { background: #ff5e5e; box-shadow: 0 0 6px rgba(255,94,94,.6); }
+.dot-amber { background: #ffc857; box-shadow: 0 0 6px rgba(255,200,87,.6); }
+.dot-green { background: #b6f07c; box-shadow: 0 0 6px rgba(182,240,124,.6); }
+.win-name {
+  margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-pixel); font-size: 11px; letter-spacing: .05em;
+  color: var(--phosphor-dim);
+}
+.win-ver {
+  font-family: var(--font-pixel); font-size: 10px; letter-spacing: .04em;
+  color: var(--phosphor-faint); white-space: nowrap;
+}
+
 .shell {
   position: relative; z-index: 1;
   width: min(1380px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 28px 0 70px;
+  padding: 24px 0 10px;
 }
 
-/* ===== Шапка: строки терминала ===== */
+/* ===== Шапка ===== */
 header {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 24px; margin-bottom: 26px;
+  gap: 24px; margin-bottom: 22px;
 }
 .brand { display: flex; align-items: center; gap: 16px; }
 
 .logo {
-  width: 60px; height: 60px; flex: 0 0 60px;
+  width: 56px; height: 56px; flex: 0 0 56px;
   position: relative; overflow: hidden;
   padding: 3px;
   background: var(--frame-strong);
   box-shadow: 4px 4px 0 var(--shadow), inset 0 0 0 1px rgba(182, 240, 124, .25);
   image-rendering: pixelated;
 }
-.logo::before {
-  content: "";
-  position: absolute; inset: 3px;
-  background: var(--bg1);
-}
+.logo::before { content: ""; position: absolute; inset: 3px; background: var(--bg1); }
 .logo span { display: none; }
 .logo img {
   position: relative; z-index: 1;
@@ -139,34 +168,32 @@ header {
 
 h1, h2, p { margin: 0; }
 h1 {
-  font-family: var(--font-pixel);
-  font-size: clamp(13px, 2.2vw, 20px); /* Press Start 2P широкий */
-  line-height: 1.5; letter-spacing: .02em;
+  font-size: clamp(16px, 2.6vw, 22px);
+  line-height: 1.4; letter-spacing: .03em;
   color: var(--phosphor);
   text-shadow: 0 0 8px rgba(182, 240, 124, .45);
 }
 .eyebrow {
-  margin-top: 9px; color: var(--phosphor-dim);
-  font: 14px var(--font-term);
-  letter-spacing: .04em;
+  margin-top: 6px; color: var(--phosphor-dim);
+  font: 15px var(--font-term); letter-spacing: .05em;
 }
 .eyebrow b { color: var(--amber); font-weight: 400; }
 
 /* ===== Статусная строка ===== */
 .status {
   display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   color: var(--phosphor);
   border: 1px solid var(--frame-strong);
   background: rgba(10, 17, 20, .92);
-  font: 16px var(--font-term);
+  font: 15px var(--font-term);
   letter-spacing: .04em;
   box-shadow: 4px 4px 0 var(--shadow);
   flex-wrap: wrap; white-space: nowrap;
 }
 .status-dot {
-  width: 10px; height: 10px;
-  background: var(--phosphor);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--acid);
   box-shadow: 0 0 10px rgba(182, 240, 124, .8);
   flex-shrink: 0;
   animation: pulse 2.2s steps(2) infinite;
@@ -186,7 +213,7 @@ h1 {
   gap: 22px; align-items: start;
 }
 
-/* ===== Панели: мониторные окна ===== */
+/* ===== Панели ===== */
 .panel {
   position: relative;
   background: var(--bg1);
@@ -194,29 +221,17 @@ h1 {
   border-radius: var(--radius);
   box-shadow: 5px 5px 0 var(--shadow);
 }
-.panel::before { /* рамка-скан */
+.panel::before {
   content: "";
   position: absolute; inset: 0;
   border: 1px solid rgba(182, 240, 124, .05);
   pointer-events: none;
 }
-.panel::after { /* курсор-индикатор */
-  content: "▮";
-  position: absolute; right: 14px; top: 12px;
-  color: var(--phosphor-dim);
-  font-size: 12px; line-height: 1;
-  animation: cursor-blink 1.2s steps(1) infinite;
-  pointer-events: none;
-}
-@keyframes cursor-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-.form-panel { padding: 28px; }
-.preview-panel { padding: 28px; min-height: 780px; }
+.form-panel { padding: 24px 24px 20px; }
+.preview-panel { padding: 24px; min-height: 780px; }
 .panel-head {
   display: flex; align-items: end; justify-content: space-between;
-  gap: 18px; margin-bottom: 28px;
+  gap: 18px; margin-bottom: 26px;
 }
 .panel-title {
   font-family: var(--font-pixel);
@@ -224,26 +239,52 @@ h1 {
   color: var(--amber);
   text-shadow: 0 0 8px rgba(255, 200, 87, .35);
 }
-.panel-kicker { margin-top: 10px; color: var(--phosphor-dim); font: 15px var(--font-term); line-height: 1.6; }
+.panel-kicker { margin-top: 8px; color: var(--phosphor-dim); font: 15px var(--font-term); line-height: 1.6; }
 .tag {
   color: var(--phosphor);
   border: 1px solid var(--frame-strong);
   background: var(--bg2);
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-family: var(--font-pixel); font-size: 10px; white-space: nowrap;
   letter-spacing: .05em;
   box-shadow: 3px 3px 0 var(--shadow);
 }
 
+/* ===== Блоки-команды (fieldset) ===== */
+.cmd-block {
+  margin: 0 0 20px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--frame);
+  background: rgba(14, 23, 27, .5);
+}
+.cmd-block:last-of-type { margin-bottom: 0; }
+.cmd-save { padding-bottom: 18px; }
+.cmd-name {
+  padding: 0 8px;
+  font-family: var(--font-pixel); font-size: 11px;
+  letter-spacing: .04em; color: var(--phosphor);
+}
+.cmd-name .cmd-dash { color: var(--phosphor-faint); }
+.cmd-name .cmd-hint { color: var(--phosphor-dim); }
+.cmd-block > .field:first-child,
+.cmd-block > .two:first-child { margin-top: 6px; }
+
 /* ===== Поля формы ===== */
-.field { margin-bottom: 22px; }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
 label {
-  display: flex; justify-content: space-between; margin-bottom: 9px;
-  color: var(--phosphor); font-size: 12px; font-weight: 400;
+  display: flex; justify-content: space-between; margin-bottom: 8px;
+  color: var(--phosphor); font-size: 11px; font-weight: 400;
   font-family: var(--font-pixel);
   letter-spacing: .04em;
 }
 label .req { color: var(--red); }
+.field-hint {
+  margin-top: 6px;
+  color: var(--phosphor-faint);
+  font: 13px var(--font-term);
+  letter-spacing: .03em;
+}
 .url-wrap input,
 input, select, textarea {
   width: 100%;
@@ -252,7 +293,7 @@ input, select, textarea {
   outline: none;
   background: var(--bg2);
   color: var(--phosphor);
-  padding: 12px 14px;
+  padding: 11px 13px;
   font: 18px/1.45 var(--font-term);
   caret-color: var(--amber);
   box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .45);
@@ -273,13 +314,13 @@ select {
   background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%;
   background-size: 6px 6px; background-repeat: no-repeat;
 }
-textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-/* ===== Рейтинг: фосфорные кристаллы ===== */
+/* ===== Рейтинг ===== */
 .rating { display: flex; gap: 8px; }
 .star {
-  width: 48px; height: 44px; display: grid; place-items: center;
+  width: 46px; height: 42px; display: grid; place-items: center;
   border: 1px solid var(--frame-strong); border-radius: 2px;
   background: var(--bg2);
   color: var(--phosphor-faint); font-size: 22px; cursor: pointer; transition: .12s;
@@ -293,21 +334,32 @@ textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
   transform: translate(-2px, -2px);
   box-shadow: 5px 5px 0 var(--shadow);
 }
+.star:focus-visible {
+  outline: 2px solid var(--amber); outline-offset: 2px;
+  color: var(--amber);
+}
 
-/* ===== Кнопка: "выполнить" ===== */
+/* ===== Кнопка ===== */
 .save {
   width: 100%;
   border: 1px solid var(--phosphor);
   border-radius: 2px;
-  padding: 16px 18px;
+  padding: 15px 18px;
   background: transparent;
   color: var(--phosphor);
   font-family: var(--font-pixel);
-  font-size: 13px; letter-spacing: .06em;
+  font-size: 12px; letter-spacing: .06em;
   text-transform: uppercase;
   cursor: pointer;
   box-shadow: 5px 5px 0 var(--shadow), inset 0 0 0 1px rgba(182, 240, 124, .12);
   transition: .12s;
+  position: relative;
+}
+.save::before { /* каретка-подсказка */
+  content: ">";
+  position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--amber); font-size: 14px;
 }
 .save:hover:not(:disabled) {
   background: rgba(182, 240, 124, .1);
@@ -320,10 +372,13 @@ textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
   box-shadow: 2px 2px 0 var(--shadow);
 }
 .save:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.save:focus-visible {
+  outline: 2px solid var(--amber); outline-offset: 2px;
+}
 
-/* ===== Сообщения ===== */
+/* ===== Toast ===== */
 .toast {
-  margin-top: 16px; padding: 12px 14px;
+  margin-top: 16px; padding: 11px 13px;
   border-radius: 2px;
   border: 1px solid var(--frame-strong);
   background: var(--bg1);
@@ -334,6 +389,41 @@ textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
 .toast-success { border-color: var(--phosphor); color: var(--phosphor); text-shadow: 0 0 8px rgba(182,240,124,.4); }
 .toast-error { border-color: var(--red); color: var(--red); text-shadow: 0 0 8px rgba(255,94,94,.4); }
 .toast-info { border-color: var(--amber); color: var(--amber); text-shadow: 0 0 8px rgba(255,200,87,.35); }
+
+/* ===== Пустое состояние превью ===== */
+.preview-empty {
+  display: grid;
+  place-items: center;
+  min-height: 520px;
+  padding: 30px;
+  text-align: center;
+  border: 1px dashed var(--frame-strong);
+  background:
+    linear-gradient(180deg, rgba(14, 23, 27, .5), rgba(10, 17, 20, .7));
+}
+.preview-empty-code {
+  font-family: var(--font-pixel);
+  font-size: 15px; letter-spacing: .06em;
+  color: var(--phosphor-faint);
+  border: 1px solid var(--frame-strong);
+  padding: 10px 16px;
+  background: var(--bg1);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.preview-empty-text {
+  margin-top: 16px;
+  font: 16px/1.6 var(--font-term);
+  color: var(--phosphor-dim);
+}
+.preview-empty-cursor {
+  margin-top: 14px;
+  font-size: 20px; color: var(--amber);
+  animation: cursor-blink 1.2s steps(1) infinite;
+}
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
 
 /* ===== Карточка книги ===== */
 .book-card {
@@ -407,7 +497,7 @@ textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
 }
 .annotation p { color: var(--phosphor); font: 16px/1.55 var(--font-term); margin: 0; white-space: pre-wrap; }
 
-/* ===== Панель результата: лог ===== */
+/* ===== Панель результата ===== */
 .result-panel {
   margin-top: 16px; padding: 16px;
   border: 1px dashed var(--frame-strong);
@@ -442,7 +532,24 @@ textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
 }
 .warning-item-ok { border-color: rgba(182, 240, 124, .35); background: rgba(182, 240, 124, .06); color: var(--phosphor); }
 
-/* ===== Адаптация flatpickr: тёмный терминал ===== */
+/* ===== Статусная строка окна ===== */
+.win-status {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 20px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--frame);
+  background: #06090c;
+  font: 14px var(--font-term);
+  color: var(--phosphor-faint);
+}
+.win-status-prompt { color: var(--amber); }
+.win-status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win-status-cursor {
+  color: var(--phosphor);
+  animation: cursor-blink 1.2s steps(1) infinite;
+}
+
+/* ===== Адаптация flatpickr ===== */
 .flatpickr-calendar {
   background: var(--bg1);
   border: 1px solid var(--frame-strong);
@@ -470,14 +577,17 @@ span.flatpickr-weekday { background: var(--bg1); color: var(--phosphor); }
   .layout { grid-template-columns: 1fr; }
   .preview-panel { min-height: auto; }
   .cover { max-width: 400px; margin: 0 auto; }
+  .preview-empty { min-height: 320px; }
 }
 @media (max-width: 620px) {
-  .shell { width: min(100% - 24px, 1380px); padding-top: 16px; }
+  .crt-shell { margin: 8px; }
+  .shell { width: min(100% - 24px, 1380px); padding-top: 14px; }
   header { align-items: flex-start; flex-wrap: wrap; }
-  .logo { width: 52px; height: 52px; flex-basis: 52px; }
-  .status { white-space: normal; font-size: 14px; padding: 8px 14px; }
-  .form-panel, .preview-panel { padding: 18px; }
+  .logo { width: 48px; height: 48px; flex-basis: 48px; }
+  .status { white-space: normal; font-size: 14px; padding: 8px 12px; }
+  .form-panel, .preview-panel { padding: 16px; }
   .two { grid-template-columns: 1fr; }
   .cover { width: 100%; max-width: 100%; margin: 0; }
   body { font-size: 16px; }
+  .win-ver { display: none; }
 }
