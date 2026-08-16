@@ -44,6 +44,28 @@ parser = BookParser()
 
 _URL_LINE_RE = re.compile(r'^\s*URL:\s*(\S+)\s*$', re.IGNORECASE)
 
+# --- Жизненный цикл: heartbeat + авто-завершение ---------------------------------
+_HEARTBEAT_TIMEOUT = 40.0      # секунд без пинга → завершаемся (запас на троттлинг фоновых вкладок)
+_last_activity = time.monotonic()
+_shutdown_requested = False
+
+
+def _touch_activity() -> None:
+    """Любой запрос от фронта означает, что бэк жив и нужен."""
+    global _last_activity
+    _last_activity = time.monotonic()
+
+
+def _watchdog() -> None:
+    """Фоновый поток: убивает сервер, если никто не пинует дольше таймаута."""
+    while not _shutdown_requested:
+        time.sleep(2.0)
+        idle = time.monotonic() - _last_activity
+        if idle > _HEARTBEAT_TIMEOUT:
+            print(f'[watchdog] нет активности {idle:.0f}s — завершаюсь')
+            os._exit(0)
+    print('[watchdog] shutdown уже запрошен — выходим')
+
 
 def close_parser() -> None:
     if parser:
@@ -227,24 +249,38 @@ def _save_book_internal(url: str, date: str, rating_str: str, useful: str, comme
     }, 200
 
 
+@app.before_request
+def _mark_activity():
+    _touch_activity()
+    return None
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
+@app.route('/ping', methods=['GET', 'POST'])
+def ping():
+    return jsonify({'ok': True})
+
+
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
+    """Мягкое завершение — используется фронтом при закрытии (fallback)."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    threading.Thread(target=_graceful_exit, daemon=True).start()
+    return jsonify({'status': 'shutting_down'})
+
+
+def _graceful_exit() -> None:
+    time.sleep(0.5)
     try:
         close_parser()
     except Exception:
         pass
-
-    def _shutdown():
-        time.sleep(0.5)  # увеличили с 0.3 до 0.5 секунды
-        os.kill(os.getpid(), signal.SIGTERM)
-
-    threading.Thread(target=_shutdown, daemon=True).start()
-    return jsonify({'status': 'shutting_down'})
+    os._exit(0)
 
 
 @app.route('/parse', methods=['POST'])
@@ -288,19 +324,42 @@ def save_book():
     return jsonify(payload), status
 
 
+def _port_in_use(host: str, port: int) -> bool:
+    """Проверяем, занят ли порт (уже запущен другой инстанс)."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
 def open_browser() -> None:
-    Timer(1, lambda: webbrowser.open('http://127.0.0.1:5000')).start()
+    try:
+        Timer(1, lambda: webbrowser.open('http://127.0.0.1:5000')).start()
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':
-    open_browser()
-    app.run(host='127.0.0.1', port=5000, debug=False)
-    if __name__ == '__main__':
+    # Single-instance: если порт занят — бэк уже работает, просто открываем фронт.
+    if _port_in_use('127.0.0.1', 5000):
+        print('Бэк уже запущен на :5000 — открываю браузер и выхожу.')
         open_browser()
+        time.sleep(2)
+        os._exit(0)
+
+    print('Запускаю BookNoteCreator на http://127.0.0.1:5000')
+    open_browser()
+
+    threading.Thread(target=_watchdog, daemon=True).start()
+
+    try:
+        app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
+    except KeyboardInterrupt:
+        pass
+    finally:
         try:
-            app.run(host='127.0.0.1', port=5000, debug=False)
-        except KeyboardInterrupt:
-            pass
-        finally:
             close_parser()
-            os._exit(0)
+        except Exception:
+            pass

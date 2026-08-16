@@ -44,6 +44,12 @@ def static_dir() -> Path:
 
 def playwright_browsers_dir() -> Path:
     """Local Playwright browser cache shipped with the portable folder."""
+    if is_frozen():
+        # PyInstaller 6.x кладёт datas в sys._MEIPASS/_internal.
+        # Используем её, если браузеры вшиты туда.
+        bundled = resource_dir() / 'playwright-browsers'
+        if bundled.exists() and any(bundled.iterdir()):
+            return bundled
     path = app_dir() / 'playwright-browsers'
     path.mkdir(parents=True, exist_ok=True)
     return path
