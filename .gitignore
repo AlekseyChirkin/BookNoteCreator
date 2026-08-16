@@ -3,16 +3,21 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv_tmp/
 venv/
 env/
 
 # Playwright browsers
 playwright-browsers/
 
-# Build output
+# Build output (PyInstaller)
 build/
 dist/
+app/
 *.spec.bak
+
+# Generated resources (md files and covers)
+_resources/
 
 # IDE
 .idea/

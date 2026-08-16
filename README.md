@@ -1,8 +1,32 @@
-# Book Note Creator
+# 📚 Book Note Creator
+
+<div align="center">
+
+**Портативное Windows-приложение для ведения записей о прочитанном**
+Извлекает метаданные книг из **litres.ru** и **author.today** и сохраняет их в Obsidian-совместимые Markdown-файлы с обложками.
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.0+-000000?logo=flask)
+![Platform](https://img.shields.io/badge/Platform-Windows-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+[![Portable Build](https://github.com/AlekseyChirkin/BookNoteCreator/actions/workflows/build.yml/badge.svg)](https://github.com/AlekseyChirkin/BookNoteCreator/actions/workflows/build.yml)
+
+</div>
+
+---
 
 Портативное десктоп-приложение для добавления прочитанных книг из **litres.ru** и **author.today** в Obsidian-совместимые Markdown-файлы с обложками.
 
-## Быстрый старт (Windows)
+## ✨ Возможности
+
+- 🔗  Автоматический парсинг книг по URL с **litres.ru** и **author.today**
+- 📄 Генерация Markdown-файлов с frontmatter, совместимых с Obsidian
+- 🖼️ Автозагрузка и сохранение обложек книг
+- ⭐ Личный рейтинг, рекомендации и комментарии
+- 🛡️ Защита от дубликатов (по URL книги)
+- 📦 Сборка в полностью портативную папку приложения
+
+## 🚀 Быстрый старт (Windows)
 
 Рекомендуемый способ — использование портативной папки:
 
@@ -21,20 +45,19 @@
 | `_internal/` | Шаблоны, статика и ресурсы приложения |
 | `_resources/` | Папка сгенерированных `.md` файлов и обложек |
 
-Скопируйте всю папку `app/` на другой ПК — запустите `start.bat`, приложение работает автономно.
+> Скопируйте всю папку `app/` на другой ПК — запустите `start.bat`, приложение работает автономно.
 
-## Режим разработки
+## 🛠️ Режим разработки
 
 ### Требования
 
 - Python 3.10+
 - Windows 10/11
-- Git (для проверки)
+- Git
 
 ### Установка
 
 ```powershell
-cd "D:\Projects\BookNoteCreator - portable"
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
@@ -49,7 +72,7 @@ python web_book_parser.py
 
 Сервер запустится на `http://127.0.0.1:5000` и автоматически откроет браузер.
 
-## Использование
+## 📖 Использование
 
 1. Вставьте URL книги (litres.ru или author.today) в поле ввода
 2. Выберите дату прочтения
@@ -62,7 +85,7 @@ python web_book_parser.py
 
 Проверка основана на URL книги: если уже существует `.md` файл с этим URL — дубликат не создаётся, пользователю отображается уведомление.
 
-## Архитектура проекта
+## 🏗️ Архитектура проекта
 
 | Файл | Назначение |
 |---|---|
@@ -74,8 +97,9 @@ python web_book_parser.py
 | `templates/index.html` | Фронтенд: форма ввода, превью книги, визуальные элементы |
 | `static/style.css` | CSS-стили фронтенда, адаптивный дизайн, тёмная тема |
 | `build_portable.bat` | Сборка портативной версии через PyInstaller |
+| `book_note_creator.spec` | Конфигурация сборки PyInstaller |
 
-## Поддерживаемые сайты
+## 🌐 Поддерживаемые сайты
 
 ### author.today
 - Парсинг через Playwright (обход JS-рендеринга)
@@ -87,7 +111,7 @@ python web_book_parser.py
 - JSON-LD + CSS-селекторы для извлечения метаданных
 - Извлечение: название, авторы, серия, номер тома, аннотация, обложка, рейтинг, жанги, чтец
 
-## Формат записи в Obsidian
+## 📝 Формат записи в Obsidian
 
 ```yaml
 ---
@@ -116,13 +140,37 @@ URL: https://author.today/work/622629
 Текст аннотации...
 ```
 
-## Примечания
+## ⚙️ Непрерывная интеграция
+
+Проект включает [GitHub Actions workflow](.github/workflows/build.yml), который при каждом пуше в `main`:
+
+1. Устанавливает зависимости
+2. Инсталлирует Chromium для Playwright
+3. Собирает портативную версию через PyInstaller
+4. Отдаёт готовую папку `app/` как артефакт сборки
+
+## 📦 Зависимости
+
+- `flask>=3.0.0` — веб-сервер и маршрутизация (REST API)
+- `beautifulsoup4>=4.12.0` — разбор HTML/DOM (JSON-LD, CSS-селекторы)
+- `lxml>=4.9.0` — быстрый XML/HTML парсер для BeautifulSoup
+- `requests>=2.31.0` — HTTP-клиент и загрузка обложек
+- `playwright>=1.50.0` — автоматизация Chromium для JS-страниц
+
+## 📌 Примечания
 
 - `author.today` требует Playwright с установленным Chromium. Портативная сборка включает Chromium встроенно.
 - Если Playwright недоступен — парсинг author.today откатится на статичный HTML (качество ниже), а litres.ru останется рабочим.
-- Пакетный импорт был исключён для упрощения сборки и стабильности.
 - Сборку `build/` и `dist/` можно удалить после успешного копирования — это артефакты PyInstaller.
 
-## Лицензия
+## 🤝 Вклад
 
-MIT
+Баг-репорты и предложения оформляйте через [Issues](../../issues). Pull request'ы приветствуются.
+
+## 📄 Лицензия
+
+Проект распространяется под лицензией **MIT**. Подробнее — в файле [LICENSE](LICENSE).
+
+---
+
+<p align="center">Сделано с ❤️ для любителей чтения и Obsidian</p>
